@@ -1,8 +1,7 @@
 spring:
   application:
     name: configserver
-  profiles:
-    active: native
+  # REMOVED: spring.profiles.active — not allowed in profile-specific files (Spring Boot 4.0)
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}

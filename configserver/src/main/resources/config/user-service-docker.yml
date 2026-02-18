@@ -22,9 +22,7 @@ management:
   tracing:
     sampling:
       probability: 1.0
-  zipkin:
-    tracing:
-      endpoint: ${ZIPKIN_URL:http://zipkin:9411/api/v2/spans}
+  # REMOVED: management.zipkin.tracing.endpoint — deprecated in Spring Boot 4.0
 
 
 eureka:

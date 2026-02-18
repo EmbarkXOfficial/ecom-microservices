@@ -1,69 +1,67 @@
 services:
   postgres:
-    container_name: postgres
     image: postgres:14
-    mem_limit: 700m
+    container_name: postgres
     environment:
-      POSTGRES_USER: embarkx
-      POSTGRES_PASSWORD: embarkx
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       PGDATA: /data/postgres
     volumes:
       - postgres:/data/postgres
-      - ./init-multi-db.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "5432:5432"
+      - 5432:5432
     networks:
       - backend
     restart: unless-stopped
 
   pgadmin:
-    container_name: pgadmin_container
     image: dpage/pgadmin4
-    mem_limit: 700m
+    container_name: pgadmin_container
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-pgadmin@pgadmin.org}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     volumes:
       - pgadmin:/var/lib/pgadmin
     ports:
-      - "5050:80"
+      - 5050:80
     networks:
       - backend
     restart: unless-stopped
 
   keycloak:
-    container_name: keycloak
     image: quay.io/keycloak/keycloak:26.2.5
-    mem_limit: 700m
-    ports:
-      - "8443:8080"
+    container_name: keycloak
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-#      PROXY_ADDRESS_FORWARDING: "true"
-#      KEYCLOAK_FRONTEND_URL: "http://localhost:8443"
-    command: [ "start-dev" ]
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command: start-dev
+    ports:
+      - 8443:8080
     networks:
       - backend
 
   mongo:
     image: mongodb/mongodb-community-server:latest
     container_name: mongo
-    mem_limit: 700m
     ports:
-      - "27017:27017"
+      - 27017:27017
+    volumes:
+      - mongo:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-root}
     networks:
       - backend
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
-    ports:
-      - "2181:2181"
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 2181:2181
     networks:
       - backend
 
@@ -71,30 +69,28 @@ services:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
     ports:
-      - "9092:9092"
+      - 9092:9092
+    depends_on:
+      - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_INTERNAL://kafka:29092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    depends_on:
-      - zookeeper
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
     networks:
       - backend
 
   rabbitmq:
-    container_name: rabbitmq
     image: rabbitmq:3-management
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+    container_name: rabbitmq
     ports:
-      - "5672:5672"   # RabbitMQ Message Broker
-      - "15672:15672" # RabbitMQ Management UI (http://localhost:15672)
+      - 5672:5672
+      - 15672:15672
     networks:
       - backend
-    restart: unless-stopped
-
 
   zipkin:
     image: openzipkin/zipkin
@@ -103,72 +99,58 @@ services:
       - 9411:9411
     networks:
       - backend
-      - loki
+
+  # ============================================================================
+  # Microservices (Spring Boot 4.0.2 + Spring Cloud 2025.1.1 — built with Jib)
+  # ============================================================================
 
   config-server:
-#    build: ../../configserver
-    image: dcode007/config-server
+    image: ecom/config-server
     container_name: config-server
     ports:
       - 8888:8888
     networks:
       - backend
     environment:
-      - SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS=/config
+      - SPRING_PROFILES_ACTIVE=docker,native
       - RABBITMQ_HOST=${RABBITMQ_HOST}
       - RABBITMQ_PORT=${RABBITMQ_PORT}
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
       - RABBITMQ_VHOST=${RABBITMQ_VHOST}
-    volumes:
-      - ./../../configserver/src/main/resources/config:/config
-    healthcheck:
-      test: [ "CMD", "wget", "--spider", "http://localhost:8761/actuator/health" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    depends_on:
+      - rabbitmq
+    restart: on-failure
 
   eureka:
-#    build: ../../eureka
-    image: dcode007/eureka-server
+    image: ecom/eureka-server
     container_name: eureka
     ports:
       - 8761:8761
     networks:
       - backend
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:8761/actuator/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    depends_on:
+      - config-server
+    restart: on-failure
 
   gateway-service:
-#    build: ../../gateway
-    image: dcode007/gateway-service
+    image: ecom/gateway
     container_name: gateway
-#    mem_limit: 700m
     ports:
       - 8080:8080
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - ZIPKIN_URL=${ZIPKIN_URL}
     depends_on:
-      - mongo
-      - rabbitmq
       - eureka
-      - keycloak
       - config-server
+      - keycloak
     networks:
       - backend
     restart: on-failure
 
   user-service:
-#    build: ../../user
-    image: dcode007/user-service
+    image: ecom/user-service
     container_name: user-service
-#    mem_limit: 700m
-#    ports:
-#      - 8082:8082
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - MONGO_URI=${MONGO_URI}
@@ -178,22 +160,17 @@ services:
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
       - RABBITMQ_VHOST=${RABBITMQ_VHOST}
     depends_on:
-      - mongo
-      - rabbitmq
       - eureka
-      - keycloak
       - config-server
+      - mongo
+      - keycloak
     networks:
       - backend
     restart: on-failure
 
   product-service:
-#    build: ../../product
-    image: dcode007/product-service
+    image: ecom/product-service
     container_name: product-service
-#    mem_limit: 700m
-#    ports:
-#      - 8081:8081
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - DB_USER=${DB_USER}
@@ -204,22 +181,16 @@ services:
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
       - RABBITMQ_VHOST=${RABBITMQ_VHOST}
     depends_on:
-      - mongo
-      - rabbitmq
       - eureka
-      - keycloak
       - config-server
+      - postgres
     networks:
       - backend
     restart: on-failure
 
   order-service:
-#    build: ../../order
-    image: dcode007/order-service
+    image: ecom/order-service
     container_name: order-service
-#    mem_limit: 700m
-#    ports:
-#      - 8083:8083
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - DB_USER=${DB_USER}
@@ -230,257 +201,32 @@ services:
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
       - RABBITMQ_VHOST=${RABBITMQ_VHOST}
     depends_on:
-      - mongo
-      - rabbitmq
       - eureka
-      - keycloak
       - config-server
+      - postgres
+      - kafka
     networks:
       - backend
     restart: on-failure
 
   notification-service:
-    #    build: ../../order
-    image: dcode007/notification-service
+    image: ecom/notification-service
     container_name: notification-service
-    #    mem_limit: 700m
     environment:
       - SPRING_PROFILES_ACTIVE=docker
     depends_on:
-      - mongo
-      - rabbitmq
       - eureka
-      - keycloak
       - config-server
+      - kafka
     networks:
       - backend
     restart: on-failure
 
-  read:
-    image: grafana/loki:latest
-    command: "-config.file=/etc/loki/config.yaml -target=read"
-    ports:
-      - 3101:3100
-      - 7946
-      - 9095
-    volumes:
-      - ./logging/loki-config.yaml:/etc/loki/config.yaml
-    depends_on:
-      - minio
-    healthcheck:
-      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks: &loki-dns
-      loki:
-        aliases:
-          - loki
-
-  write:
-    image: grafana/loki:latest
-    command: "-config.file=/etc/loki/config.yaml -target=write"
-    ports:
-      - 3102:3100
-      - 7946
-      - 9095
-    volumes:
-      - ./logging/loki-config.yaml:/etc/loki/config.yaml
-    healthcheck:
-      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    depends_on:
-      - minio
-    networks:
-      <<: *loki-dns
-
-  alloy:
-    image: grafana/alloy:latest
-    volumes:
-      - ./logging/alloy-local-config.yaml:/etc/alloy/config.alloy:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ../../logs:/logs-parent:ro
-    command:  run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
-    ports:
-      - 12345:12345
-    depends_on:
-      - loki-gateway
-    networks:
-      - loki
-
-  minio:
-    image: minio/minio
-    entrypoint:
-      - sh
-      - -euc
-      - |
-        mkdir -p /data/loki-data && \
-        mkdir -p /data/loki-ruler && \
-        minio server /data
-    environment:
-      - MINIO_ROOT_USER=loki
-      - MINIO_ROOT_PASSWORD=supersecret
-      - MINIO_PROMETHEUS_AUTH_TYPE=public
-      - MINIO_UPDATE=off
-    ports:
-      - 9000
-    volumes:
-      - ./.data/minio:/data
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
-      interval: 15s
-      timeout: 20s
-      retries: 5
-    networks:
-      - loki
-
-  prometheus:
-    image: prom/prometheus:v2.44.0
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    networks:
-      - loki
-
-  grafana:
-    image: grafana/grafana:latest
-    environment:
-      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
-    depends_on:
-      - loki-gateway
-    entrypoint:
-      - sh
-      - -euc
-      - |
-        mkdir -p /etc/grafana/provisioning/datasources
-        cat <<EOF > /etc/grafana/provisioning/datasources/ds.yaml
-        apiVersion: 1
-        datasources:
-          - name: Loki
-            type: loki
-            access: proxy
-            url: http://loki-gateway:3100
-            jsonData:
-              httpHeaderName1: "X-Scope-OrgID"
-            secureJsonData:
-              httpHeaderValue1: "tenant1"
-        EOF
-        /run.sh
-    ports:
-      - "3000:3000"
-    healthcheck:
-      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - ./grafana/datasources:/etc/grafana/provisioning/datasources
-    networks:
-      - loki
-
-  backend:
-    image: grafana/loki:latest
-    volumes:
-      - ./logging/loki-config.yaml:/etc/loki/config.yaml
-    ports:
-      - "3100"
-      - "7946"
-    command: "-config.file=/etc/loki/config.yaml -target=backend -legacy-read-mode=false"
-    depends_on:
-      - loki-gateway
-    networks:
-      - loki
-
-
-  loki-gateway:
-    image: nginx:latest
-    depends_on:
-      - read
-      - write
-    entrypoint:
-      - sh
-      - -euc
-      - |
-        cat <<EOF > /etc/nginx/nginx.conf
-        user  nginx;
-        worker_processes  5;  ## Default: 1
-
-        events {
-          worker_connections   1000;
-        }
-
-        http {
-          resolver 127.0.0.11;
-
-          server {
-            listen             3100;
-
-            location = / {
-              return 200 'OK';
-              auth_basic off;
-            }
-
-            location = /api/prom/push {
-              proxy_pass       http://write:3100\$$request_uri;
-            }
-
-            location = /api/prom/tail {
-              proxy_pass       http://read:3100\$$request_uri;
-              proxy_set_header Upgrade \$$http_upgrade;
-              proxy_set_header Connection "upgrade";
-            }
-
-            location ~ /api/prom/.* {
-              proxy_pass       http://read:3100\$$request_uri;
-            }
-
-            location = /loki/api/v1/push {
-              proxy_pass       http://write:3100\$$request_uri;
-            }
-
-            location = /loki/api/v1/tail {
-              proxy_pass       http://read:3100\$$request_uri;
-              proxy_set_header Upgrade \$$http_upgrade;
-              proxy_set_header Connection "upgrade";
-            }
-
-            location ~ /loki/api/.* {
-              proxy_pass       http://read:3100\$$request_uri;
-            }
-          }
-        }
-        EOF
-        /docker-entrypoint.sh nginx -g "daemon off;"
-    ports:
-      - "3100:3100"
-    healthcheck:
-      test: ["CMD", "service", "nginx", "status"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - loki
-
-
-  flog:
-    image: mingrammer/flog
-    command: -f json -d 200ms -l
-    networks:
-      - loki
-
-
 networks:
   backend:
-    driver: bridge
-  loki:
     driver: bridge
 
 volumes:
   postgres:
   pgadmin:
+  mongo:

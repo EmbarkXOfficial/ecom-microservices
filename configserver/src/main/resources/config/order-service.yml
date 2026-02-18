@@ -1,3 +1,4 @@
+# Spring Boot 4.0.2 Migration: Removed deprecated jpa.database-platform (auto-detected by Hibernate)
 spring:
   datasource:
     url: jdbc:postgresql://postgres:5432/order
@@ -30,7 +31,7 @@ spring:
     show-sql: true
     hibernate:
       ddl-auto: update
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    # REMOVED: database-platform property — deprecated in Spring Boot 4.0 (Hibernate auto-detects dialect)
 
 server:
   port: 8083

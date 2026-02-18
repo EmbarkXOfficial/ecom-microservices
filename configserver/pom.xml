@@ -1,18 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- ============================================================================
+     Spring Boot 4.0.2 Migration (February 2026)
+     Upgraded from Spring Boot 3.4.3 → 4.0.2
+     Upgraded from Spring Cloud 2024.0.0 → 2025.0.1
+     ============================================================================ -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.4.3</version>
+		<!-- UPGRADED: Spring Boot 3.4.3 → 4.0.2 (Spring Framework 7.x) -->
+		<version>4.0.2</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.ecommerce</groupId>
 	<artifactId>configserver</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>configserver</name>
-	<description>Demo project for Spring Boot</description>
+	<description>Config Server for eCommerce Microservices</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -28,9 +34,16 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
-		<spring-cloud.version>2024.0.0</spring-cloud.version>
+		<!-- UPGRADED: Spring Cloud 2024.0.0 → 2025.0.1 (compatible with Spring Boot 4.0.x) -->
+		<spring-cloud.version>2025.1.1</spring-cloud.version>
 	</properties>
 	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<!-- ADDED: Spring Boot 4.0 renamed starter-web → starter-webmvc.
+			     spring-cloud-config-server requires WebMvcAutoConfiguration from this module. -->
+			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-config-server</artifactId>
@@ -82,12 +95,8 @@
 						<image>gcr.io/distroless/java21</image>
 					</from>
 					<to>
-						<image>dcode007/config-server</image>
+						<image>ecom/config-server</image>
 					</to>
-<!--					<auth>-->
-<!--						<username>${env.DOCKER_USERNAME}</username>-->
-<!--						<password>${env.DOCKER_PASSWORD}</password>-->
-<!--					</auth>-->
 				</configuration>
 			</plugin>
 		</plugins>

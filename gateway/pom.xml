@@ -1,18 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- ============================================================================
+     Spring Boot 4.0.2 Migration (February 2026)
+     Upgraded from Spring Boot 3.4.4 → 4.0.2
+     Upgraded from Spring Cloud 2024.0.1 → 2025.0.1
+     RENAMED: spring-boot-starter-oauth2-resource-server →
+              spring-boot-starter-security-oauth2-resource-server
+     REMOVED: Hardcoded resilience4j version (now managed by Spring Cloud BOM)
+     ============================================================================ -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.4.4</version>
+		<!-- UPGRADED: Spring Boot 3.4.4 → 4.0.2 (Spring Framework 7.x) -->
+		<version>4.0.2</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.ecommerce</groupId>
 	<artifactId>gateway</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>gateway</name>
-	<description>Demo project for Spring Boot</description>
+	<description>API Gateway for eCommerce Microservices</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -28,21 +37,24 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
-		<spring-cloud.version>2024.0.1</spring-cloud.version>
+		<!-- UPGRADED: Spring Cloud 2024.0.1 → 2025.0.1 (compatible with Spring Boot 4.0.x) -->
+		<spring-cloud.version>2025.1.1</spring-cloud.version>
 	</properties>
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-redis-reactive</artifactId>
 		</dependency>
+		<!-- REMOVED: Hardcoded version 3.2.1 — now managed by Spring Cloud 2025.0.1 BOM -->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
-			<version>3.2.1</version>
 		</dependency>
+		<!-- RENAMED: spring-boot-starter-oauth2-resource-server →
+		     spring-boot-starter-security-oauth2-resource-server (Spring Boot 4.0 rename) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+			<artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
@@ -60,9 +72,11 @@
 			<groupId>io.zipkin.reporter2</groupId>
 			<artifactId>zipkin-reporter-brave</artifactId>
 		</dependency>
+	<!-- RENAMED: spring-cloud-starter-gateway → spring-cloud-starter-gateway-server-webflux
+		     (Spring Cloud Gateway 5.0 / Spring Cloud 2025.1.x rename) -->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-starter-gateway</artifactId>
+			<artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
@@ -104,7 +118,6 @@
 				</configuration>
 			</plugin>
 
-
 			<plugin>
 				<groupId>com.google.cloud.tools</groupId>
 				<artifactId>jib-maven-plugin</artifactId>
@@ -114,7 +127,7 @@
 						<image>gcr.io/distroless/java21</image>
 					</from>
 					<to>
-						<image>dcode007/gateway-service</image>
+						<image>ecom/gateway</image>
 					</to>
 				</configuration>
 			</plugin>

@@ -1,0 +1,42 @@
+spring:
+  cloud:
+    function:
+      definition: orderCreated
+    stream:
+      function:
+        definition: orderCreated
+      bindings:
+        orderCreated-in-0:
+          destination: order.exchange
+          group: notification-group
+          content-type: application/json
+      kafka:
+        binder:
+          brokers: kafka:9092
+
+server:
+  port: 8084
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://eureka:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  tracing:
+    sampling:
+      probability: 1.0
+
+logging:
+  file:
+    name: logs/${spring.application.name}.log
+  logback:
+    rollingpolicy:
+      max-file-size: 5MB
+      max-history: 7
